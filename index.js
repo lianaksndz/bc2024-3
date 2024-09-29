@@ -1,66 +1,49 @@
+// index.js
 const fs = require('fs');
-const { program } = require('commander');
+const commander = require('commander');
 
-// Налаштування параметрів командного рядка
+const program = new commander.Command();
+
 program
-    .requiredOption('-i, --input <path>', 'Input file path') // обовʼязковий параметр
-    .option('-o, --output <path>', 'Output file path') // не обовʼязковий параметр
-    .option('-d, --display', 'Display result in console') // не обовʼязковий параметр
-    .parse(process.argv);
+    .option('-i, --input <path>', 'input file path', './data.json') // Встановлено значення за замовчуванням
+    .option('-o, --output <path>', 'output file path')
+    .option('-d, --display', 'display result in console');
 
-// Отримуємо значення аргументів
+program.parse(process.argv);
+
 const options = program.opts();
 
-// Перевірка наявності обов'язкового параметра `input`
+// Перевірка наявності обовʼязкового параметра
 if (!options.input) {
     console.error('Please, specify input file');
-    process.exit(1); // Завершуємо програму з кодом помилки
+    process.exit(1);
 }
 
-// Перевірка, чи існує файл для читання
-if (!fs.existsSync(options.input)) {
+// Синхронне читання файлу
+let jsonData;
+try {
+    const data = fs.readFileSync(options.input, 'utf8');
+    jsonData = JSON.parse(data);
+} catch (error) {
     console.error('Cannot find input file');
-    process.exit(1); // Завершуємо програму з кодом помилки
+    process.exit(1);
 }
 
-// Функція для обробки та форматування даних
-function formatBondData(data) {
-    return data.map(item => `${item.StockCode}-${item.ValCode}-${item.Attraction}`).join('\n');
+// Форматування даних
+const formattedData = jsonData.map(item => {
+    const stockCode = item.StockCode || item.Code || ''; // Заміна на Code, якщо поле StockCode відсутнє
+    const valCode = item.ValCode || item.Currency || ''; // Заміна на Currency
+    const attraction = item.Attraction || item.Size || ''; // Заміна на Size
+
+    return `${stockCode}-${valCode}-${attraction}`;
+}).join('\n');
+
+// Вивід результатів у консоль
+if (options.display) {
+    console.log('Formatted data:\n', formattedData);
 }
 
-// Читання файлу
-fs.readFile(options.input, 'utf8', (err, data) => {
-    if (err) {
-        console.error('Error reading input file:', err);
-        return;
-    }
-
-    let jsonData;
-    try {
-        jsonData = JSON.parse(data); // Парсинг JSON даних
-    } catch (e) {
-        console.error('Error parsing JSON:', e);
-        return;
-    }
-
-    // Форматуємо дані за шаблоном <StockCode>-<ValCode>-<Attraction>
-    const formattedData = formatBondData(jsonData);
-
-    // Якщо задано параметр --display, виводимо дані у консоль
-    if (options.display) {
-        console.log('Formatted data:\n', formattedData);
-    }
-
-    // Якщо задано параметр --output, записуємо дані у файл
-    if (options.output) {
-        fs.writeFile(options.output, formattedData, (err) => {
-            if (err) {
-                console.error('Error writing to output file:', err);
-                return;
-            }
-            console.log(`Formatted data has been written to ${options.output}`);
-        });
-    }
-
-    // Якщо не задано ні --display, ні --output, програма нічого не виводить
-});
+// Запис у файл, якщо вказано
+if (options.output) {
+    fs.writeFileSync(options.output, formattedData, 'utf8');
+}
